@@ -125,12 +125,14 @@ async def individual_service_health(service_name: str) -> JSONResponse:
             health_data = await health_service.check_redis_health()
         elif service_name.lower() == "database":
             health_data = await health_service.check_database_health()
+        elif service_name.lower() == "supabase":
+            health_data = await health_service.check_supabase_health()
         elif service_name.lower() == "environment":
             health_data = health_service.check_environment_health()
         else:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Service '{service_name}' not found. Available services: redis, database, environment"
+                detail=f"Service '{service_name}' not found. Available services: redis, database, supabase, environment"
             )
         
         status_code = (status.HTTP_200_OK if health_data["status"] == "healthy" 

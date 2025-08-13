@@ -110,6 +110,20 @@ class HealthCheckService:
                 "message": f"Database error: {str(e)}"
             }
     
+    async def check_supabase_health(self) -> Dict[str, Any]:
+        """Check Supabase connectivity and service health"""
+        try:
+            from app.services.supabase import supabase_service
+            return await supabase_service.health_check()
+        except Exception as e:
+            logger.error(f"Supabase health check failed: {str(e)}")
+            return {
+                "status": "unhealthy",
+                "connection": False,
+                "error": str(e),
+                "message": "Supabase health check failed"
+            }
+    
     def check_environment_health(self) -> Dict[str, Any]:
         """Check critical environment variables"""
         required_vars = [
@@ -153,13 +167,14 @@ class HealthCheckService:
         # Run all health checks concurrently
         redis_task = asyncio.create_task(self.check_redis_health())
         db_task = asyncio.create_task(self.check_database_health())
+        supabase_task = asyncio.create_task(self.check_supabase_health())
         env_check = self.check_environment_health()  # Synchronous
         
         # Wait for async tasks
-        redis_health, db_health = await asyncio.gather(redis_task, db_task)
+        redis_health, db_health, supabase_health = await asyncio.gather(redis_task, db_task, supabase_task)
         
         # Determine overall health status
-        all_services = [redis_health, db_health, env_check]
+        all_services = [redis_health, db_health, supabase_health, env_check]
         overall_healthy = all(service["status"] == "healthy" for service in all_services)
         
         return {
@@ -168,6 +183,7 @@ class HealthCheckService:
             "services": {
                 "redis": redis_health,
                 "database": db_health,
+                "supabase": supabase_health,
                 "environment": env_check
             },
             "overall": {
