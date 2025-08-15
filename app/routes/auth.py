@@ -177,7 +177,7 @@ async def login(request: Request, login_data: LoginRequest):
     except AuthenticationError as e:
         logger.warning(f"Login failed: {e.code} - {e.message}")
         raise response_factory.create_error_response(
-            ErrorCode(e.code),
+            ErrorCode.AUTH_ERROR,
             e.message,
             e.details,
             401 if e.code in ["INVALID_CREDENTIALS", "RATE_LIMITED"] else 400
