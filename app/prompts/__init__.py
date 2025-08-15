@@ -1,0 +1,1 @@
+"""Prompt template system for AI characters"""

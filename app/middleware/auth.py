@@ -4,13 +4,17 @@ Authentication middleware and dependencies for FastAPI
 
 import logging
 from functools import wraps
-from typing import Optional
+from typing import Optional, Tuple, TYPE_CHECKING
 
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
+if TYPE_CHECKING:
+    from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.services.auth import auth_service, AuthenticationError
 from app.models.user import User
+from app.models.character import Character
 
 logger = logging.getLogger(__name__)
 
@@ -134,6 +138,120 @@ async def get_premium_user(current_user: User = Depends(get_current_active_user)
         )
     
     return current_user
+
+
+def get_user_with_character_dep():
+    """Factory function for the dependency"""
+    from app.services.database import get_db
+    
+    async def _get_user_with_character(
+        current_user: User = Depends(get_current_user),
+        db = Depends(get_db)
+    ) -> Tuple[User, Optional[Character]]:
+        """
+        Dependency to get current user with their selected character
+        
+        Args:
+            current_user: User from get_current_user dependency
+            db: Database session
+            
+        Returns:
+            Tuple of (User, Optional[Character])
+        """
+        try:
+            from app.services.character import CharacterService
+            
+            # Create character service
+            character_service = CharacterService(db)
+            
+            # Get user's selected character
+            character = await character_service.get_user_selected_character(current_user.id)
+            
+            logger.debug(f"User {current_user.id} session includes character: {character.name if character else 'None'}")
+            
+            return current_user, character
+            
+        except Exception as e:
+            logger.error(f"Error getting user character for user {current_user.id}: {e}")
+            # Return user without character if there's an error
+            return current_user, None
+    
+    return _get_user_with_character
+
+# Create the dependency
+get_user_with_character = get_user_with_character_dep()
+
+
+def require_character_selection_dep():
+    """Factory function for the dependency"""
+    from app.services.database import get_db
+    
+    async def _require_character_selection(
+        current_user: User = Depends(get_current_user),
+        db = Depends(get_db)
+    ) -> Tuple[User, Character]:
+        """
+        Dependency that requires user to have a character selected
+        
+        Args:
+            current_user: User from get_current_user dependency
+            db: Database session
+            
+        Returns:
+            Tuple of (User, Character)
+            
+        Raises:
+            HTTPException: If no character is selected
+        """
+        try:
+            from app.services.character import CharacterService
+            
+            # Create character service
+            character_service = CharacterService(db)
+            
+            # Ensure user has a character (assign default if needed)
+            user_is_premium = current_user.subscription_tier == "pro"
+            character = await character_service.ensure_user_has_character(
+                user_id=current_user.id,
+                user_is_premium=user_is_premium
+            )
+            
+            if not character:
+                logger.warning(f"Unable to assign character to user {current_user.id}")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "success": False,
+                        "error": {
+                            "code": "NO_CHARACTER_AVAILABLE",
+                            "message": "No character available. Please contact support."
+                        }
+                    }
+                )
+            
+            logger.debug(f"User {current_user.id} has character {character.id} selected for chat")
+            
+            return current_user, character
+            
+        except HTTPException:
+            raise
+        except Exception as e:
+            logger.error(f"Error ensuring character for user {current_user.id}: {e}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail={
+                    "success": False,
+                    "error": {
+                        "code": "CHARACTER_ERROR",
+                        "message": "Failed to get character information"
+                    }
+                }
+            )
+    
+    return _require_character_selection
+
+# Create the dependency
+require_character_selection = require_character_selection_dep()
 
 
 def require_auth(f):
