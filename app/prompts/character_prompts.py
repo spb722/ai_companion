@@ -4,7 +4,7 @@ Supports 3 personalities (friendly, playful, caring) in 3 languages (English, Hi
 """
 
 import logging
-from typing import Dict, Optional
+from typing import Dict, Optional, List, Any
 from enum import Enum
 
 logger = logging.getLogger(__name__)

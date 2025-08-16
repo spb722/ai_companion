@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.database import get_db
-from app.services.character import CharacterService
+from app.services.character import character_service
 from app.middleware.auth import get_current_user
 from app.models.user import User
 from app.models.character import Character
@@ -18,7 +18,7 @@ from app.models.character import Character
 logger = logging.getLogger(__name__)
 
 # Create router
-router = APIRouter(prefix="/api/v1/characters", tags=["characters"])
+router = APIRouter(prefix="/characters", tags=["characters"])
 
 
 # Response Models
@@ -66,8 +66,7 @@ class CharacterSelectionRequest(BaseModel):
 
 @router.get("/", response_model=CharacterListResponse)
 async def list_characters(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get list of characters available to the current user
@@ -76,8 +75,6 @@ async def list_characters(
         CharacterListResponse: List of available characters
     """
     try:
-        # Create character service
-        character_service = CharacterService(db)
         
         # Determine if user is premium
         user_is_premium = current_user.subscription_tier == "pro"
@@ -125,8 +122,7 @@ async def list_characters(
 @router.post("/{character_id}/select", response_model=CharacterSelectionResponse)
 async def select_character(
     character_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Select a character for the current user
@@ -138,8 +134,6 @@ async def select_character(
         CharacterSelectionResponse: Selection result
     """
     try:
-        # Create character service
-        character_service = CharacterService(db)
         
         # Determine if user is premium
         user_is_premium = current_user.subscription_tier == "pro"
@@ -194,8 +188,7 @@ async def select_character(
 
 @router.get("/current", response_model=CurrentCharacterResponse)
 async def get_current_character(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get the current user's selected character
@@ -204,8 +197,6 @@ async def get_current_character(
         CurrentCharacterResponse: Current character info
     """
     try:
-        # Create character service
-        character_service = CharacterService(db)
         
         # Get user's selected character
         character = await character_service.get_user_selected_character(current_user.id)
@@ -254,8 +245,7 @@ async def get_current_character(
 
 @router.delete("/current", response_model=CharacterSelectionResponse)
 async def clear_character_selection(
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Clear the current user's character selection
@@ -264,8 +254,6 @@ async def clear_character_selection(
         CharacterSelectionResponse: Clearing result
     """
     try:
-        # Create character service
-        character_service = CharacterService(db)
         
         # Clear character selection
         success = await character_service.clear_user_character_selection(current_user.id)
@@ -310,8 +298,7 @@ async def clear_character_selection(
 @router.get("/{character_id}", response_model=CharacterResponse)
 async def get_character_details(
     character_id: int,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
+    current_user: User = Depends(get_current_user)
 ):
     """
     Get detailed information about a specific character
@@ -323,8 +310,6 @@ async def get_character_details(
         CharacterResponse: Character details
     """
     try:
-        # Create character service
-        character_service = CharacterService(db)
         
         # Get character by ID
         character = await character_service.get_character_by_id(character_id)

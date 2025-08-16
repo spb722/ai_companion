@@ -1,0 +1,114 @@
+  {
+    "info": {
+      "name": "AI Companion Chat API",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+      {
+        "key": "baseUrl",
+        "value": "http://localhost:8001"
+      },
+      {
+        "key": "token",
+        "value": "YOUR_TOKEN_HERE"
+      }
+    ],
+    "item": [
+      {
+        "name": "1. Login",
+        "request": {
+          "method": "POST",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"email\": \"testuser@example.com\",\n  \"password\": \"password123\"\n}"
+          },
+          "url": {
+            "raw": "{{baseUrl}}/api/v1/auth/login",
+            "host": ["{{baseUrl}}"],
+            "path": ["api", "v1", "auth", "login"]
+          }
+        }
+      },
+      {
+        "name": "2. Select Character",
+        "request": {
+          "method": "POST",
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "url": {
+            "raw": "{{baseUrl}}/api/v1/characters/2/select",
+            "host": ["{{baseUrl}}"],
+            "path": ["api", "v1", "characters", "2", "select"]
+          }
+        }
+      },
+      {
+        "name": "3. Chat (Non-Streaming)",
+        "request": {
+          "method": "POST",
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"message\": \"Tell me about yourself\",\n  \"character_id\": 2,\n  \"stream\": false\n}"
+          },
+          "url": {
+            "raw": "{{baseUrl}}/api/v1/chat/send",
+            "host": ["{{baseUrl}}"],
+            "path": ["api", "v1", "chat", "send"]
+          }
+        }
+      },
+      {
+        "name": "4. Chat (Streaming)",
+        "request": {
+          "method": "POST",
+          "header": [
+            {
+              "key": "Authorization",
+              "value": "Bearer {{token}}"
+            },
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "key": "Accept",
+              "value": "text/plain"
+            }
+          ],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"message\": \"Tell me a joke\",\n  \"character_id\": 2,\n  \"stream\": true\n}"
+          },
+          "url": {
+            "raw": "{{baseUrl}}/api/v1/chat/send",
+            "host": ["{{baseUrl}}"],
+            "path": ["api", "v1", "chat", "send"]
+          }
+        }
+      }
+    ]
+  }

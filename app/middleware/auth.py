@@ -142,27 +142,21 @@ async def get_premium_user(current_user: User = Depends(get_current_active_user)
 
 def get_user_with_character_dep():
     """Factory function for the dependency"""
-    from app.services.database import get_db
     
     async def _get_user_with_character(
-        current_user: User = Depends(get_current_user),
-        db = Depends(get_db)
+        current_user: User = Depends(get_current_user)
     ) -> Tuple[User, Optional[Character]]:
         """
         Dependency to get current user with their selected character
         
         Args:
             current_user: User from get_current_user dependency
-            db: Database session
             
         Returns:
             Tuple of (User, Optional[Character])
         """
         try:
-            from app.services.character import CharacterService
-            
-            # Create character service
-            character_service = CharacterService(db)
+            from app.services.character import character_service
             
             # Get user's selected character
             character = await character_service.get_user_selected_character(current_user.id)
@@ -184,18 +178,15 @@ get_user_with_character = get_user_with_character_dep()
 
 def require_character_selection_dep():
     """Factory function for the dependency"""
-    from app.services.database import get_db
     
     async def _require_character_selection(
-        current_user: User = Depends(get_current_user),
-        db = Depends(get_db)
+        current_user: User = Depends(get_current_user)
     ) -> Tuple[User, Character]:
         """
         Dependency that requires user to have a character selected
         
         Args:
             current_user: User from get_current_user dependency
-            db: Database session
             
         Returns:
             Tuple of (User, Character)
@@ -204,10 +195,7 @@ def require_character_selection_dep():
             HTTPException: If no character is selected
         """
         try:
-            from app.services.character import CharacterService
-            
-            # Create character service
-            character_service = CharacterService(db)
+            from app.services.character import character_service
             
             # Ensure user has a character (assign default if needed)
             user_is_premium = current_user.subscription_tier == "pro"

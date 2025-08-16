@@ -2,8 +2,8 @@
 Configuration management using Pydantic BaseSettings
 """
 
-from typing import Optional
-from pydantic import BaseModel, Field
+from typing import Optional, Dict, List
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -24,8 +24,48 @@ class SupabaseSettings(BaseModel):
     service_key: str = Field(..., description="Supabase service key")
 
 
+class LLMProviderConfig(BaseModel):
+    """LLM Provider configuration"""
+    name: str
+    base_url: str
+    api_key: Optional[str] = None
+    models: List[str]
+    
+    
+class LLMSettings(BaseModel):
+    """LLM configuration with provider support"""
+    primary_provider: str = Field(default="groq", description="Primary LLM provider (groq/openai)")
+    fallback_provider: Optional[str] = Field(default="openai", description="Fallback LLM provider")
+    providers: Dict[str, LLMProviderConfig] = Field(default_factory=dict)
+    
+    @field_validator('providers', mode='before')
+    @classmethod
+    def set_default_providers(cls, v):
+        """Set default provider configurations"""
+        if not v:
+            v = {}
+        
+        # Default Groq configuration
+        if 'groq' not in v:
+            v['groq'] = {
+                'name': 'groq',
+                'base_url': 'https://api.groq.com/openai/v1',
+                'models': ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
+            }
+        
+        # Default OpenAI configuration
+        if 'openai' not in v:
+            v['openai'] = {
+                'name': 'openai', 
+                'base_url': 'https://api.openai.com/v1',
+                'models': ['gpt-3.5-turbo', 'gpt-4o-mini']
+            }
+        
+        return v
+
+
 class OpenAISettings(BaseModel):
-    """OpenAI configuration"""
+    """OpenAI configuration (legacy - kept for compatibility)"""
     api_key: str = Field(..., description="OpenAI API key")
 
 
@@ -55,8 +95,11 @@ class Settings(BaseSettings):
     supabase_anon_key: str = Field(..., alias="SUPABASE_ANON_KEY")
     supabase_service_key: str = Field(..., alias="SUPABASE_SERVICE_KEY")
     
-    # OpenAI
-    openai_api_key: str = Field(..., alias="OPENAI_API_KEY")
+    # LLM Providers
+    llm_primary_provider: str = Field(default="groq", alias="LLM_PRIMARY_PROVIDER")
+    llm_fallback_provider: Optional[str] = Field(default="openai", alias="LLM_FALLBACK_PROVIDER")
+    groq_api_key: Optional[str] = Field(default=None, alias="GROQ_API_KEY")
+    openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
     
     # Security
     secret_key: str = Field(..., alias="SECRET_KEY")
@@ -79,6 +122,18 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+    
+    @field_validator('openai_api_key')
+    @classmethod
+    def validate_llm_keys(cls, v, info):
+        """Ensure at least one LLM provider has an API key"""
+        # Get the groq_api_key from the data being validated
+        data = info.data if hasattr(info, 'data') else {}
+        groq_key = data.get('groq_api_key')
+        
+        if not groq_key and not v:
+            raise ValueError("At least one LLM provider API key (GROQ_API_KEY or OPENAI_API_KEY) must be configured")
+        return v
         
     @property
     def database(self) -> DatabaseSettings:
@@ -100,8 +155,34 @@ class Settings(BaseSettings):
         )
     
     @property
+    def llm(self) -> LLMSettings:
+        """Get LLM settings with provider configurations"""
+        providers = {
+            'groq': LLMProviderConfig(
+                name='groq',
+                base_url='https://api.groq.com/openai/v1',
+                api_key=self.groq_api_key,
+                models=['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
+            ),
+            'openai': LLMProviderConfig(
+                name='openai',
+                base_url='https://api.openai.com/v1', 
+                api_key=self.openai_api_key,
+                models=['gpt-3.5-turbo', 'gpt-4o-mini']
+            )
+        }
+        
+        return LLMSettings(
+            primary_provider=self.llm_primary_provider,
+            fallback_provider=self.llm_fallback_provider,
+            providers=providers
+        )
+    
+    @property
     def openai(self) -> OpenAISettings:
-        """Get OpenAI settings"""
+        """Get OpenAI settings (legacy - for compatibility)"""
+        if not self.openai_api_key:
+            raise ValueError("OpenAI API key not configured")
         return OpenAISettings(api_key=self.openai_api_key)
     
     @property

@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.models.character import Character
 from app.models.user import User
 from app.services.redis import redis_service
+from app.services.database import get_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,7 @@ logger = logging.getLogger(__name__)
 class CharacterService:
     """Service for character-related operations"""
     
-    def __init__(self, db: AsyncSession):
-        self.db = db
+    def __init__(self):
         self.redis = redis_service
     
     async def get_all_characters(self, user_is_premium: bool = False) -> List[Character]:
@@ -33,22 +33,23 @@ class CharacterService:
             List[Character]: List of available characters
         """
         try:
-            if user_is_premium:
-                # Premium users get all characters
-                result = await self.db.execute(
-                    select(Character).order_by(Character.id)
-                )
-            else:
-                # Free users only get non-premium characters
-                result = await self.db.execute(
-                    select(Character)
-                    .where(Character.is_premium == False)
-                    .order_by(Character.id)
-                )
-            
-            characters = result.scalars().all()
-            logger.debug(f"Retrieved {len(characters)} characters for {'premium' if user_is_premium else 'free'} user")
-            return list(characters)
+            async with get_db_session() as session:
+                if user_is_premium:
+                    # Premium users get all characters
+                    result = await session.execute(
+                        select(Character).order_by(Character.id)
+                    )
+                else:
+                    # Free users only get non-premium characters
+                    result = await session.execute(
+                        select(Character)
+                        .where(Character.is_premium == False)
+                        .order_by(Character.id)
+                    )
+                
+                characters = result.scalars().all()
+                logger.debug(f"Retrieved {len(characters)} characters for {'premium' if user_is_premium else 'free'} user")
+                return list(characters)
             
         except Exception as e:
             logger.error(f"Failed to get characters: {e}")
@@ -65,17 +66,18 @@ class CharacterService:
             Optional[Character]: Character if found, None otherwise
         """
         try:
-            result = await self.db.execute(
-                select(Character).where(Character.id == character_id)
-            )
-            character = result.scalar_one_or_none()
-            
-            if character:
-                logger.debug(f"Found character: {character.name} (ID: {character_id})")
-            else:
-                logger.warning(f"Character not found: ID {character_id}")
-            
-            return character
+            async with get_db_session() as session:
+                result = await session.execute(
+                    select(Character).where(Character.id == character_id)
+                )
+                character = result.scalar_one_or_none()
+                
+                if character:
+                    logger.debug(f"Found character: {character.name} (ID: {character_id})")
+                else:
+                    logger.warning(f"Character not found: ID {character_id}")
+                
+                return character
             
         except Exception as e:
             logger.error(f"Failed to get character {character_id}: {e}")
@@ -228,21 +230,22 @@ class CharacterService:
             Optional[Character]: Default character (first available free character)
         """
         try:
-            # Get the first available character for the user
-            result = await self.db.execute(
-                select(Character)
-                .where(Character.is_premium == False)  # Always start with free character
-                .order_by(Character.id)
-                .limit(1)
-            )
-            
-            character = result.scalar_one_or_none()
-            if character:
-                logger.debug(f"Default character for new user: {character.name}")
-            else:
-                logger.error("No default character available")
-            
-            return character
+            async with get_db_session() as session:
+                # Get the first available character for the user
+                result = await session.execute(
+                    select(Character)
+                    .where(Character.is_premium == False)  # Always start with free character
+                    .order_by(Character.id)
+                    .limit(1)
+                )
+                
+                character = result.scalar_one_or_none()
+                if character:
+                    logger.debug(f"Default character for new user: {character.name}")
+                else:
+                    logger.error("No default character available")
+                
+                return character
             
         except Exception as e:
             logger.error(f"Failed to get default character: {e}")
@@ -290,3 +293,7 @@ class CharacterService:
         except Exception as e:
             logger.error(f"Failed to ensure character for user {user_id}: {e}")
             return None
+
+
+# Global character service instance
+character_service = CharacterService()
