@@ -16,6 +16,7 @@ from starlette.responses import Response
 from app import __version__
 from app.config import settings
 from app.routes import api_router
+from app.middleware.rate_limit import RateLimitMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -86,6 +87,7 @@ app.add_middleware(
 )
 
 # Add custom middleware
+app.add_middleware(RateLimitMiddleware, requests_per_minute=10)
 app.add_middleware(LoggingMiddleware)
 
 # Include API router

@@ -15,6 +15,8 @@ from app.services.conversation_service import conversation_service
 from app.services.prompt_builder import prompt_builder
 from app.services.character import character_service
 from app.services.redis import redis_service
+from app.services.quota_service import quota_service
+from app.services.database import get_db_session
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,26 @@ class ChatService:
                     "type": "error",
                     "error": "No character selected. Please select a character first.",
                     "code": "CHARACTER_NOT_SELECTED"
+                }
+                return
+            
+            # Check message quota before processing
+            user_tier = user.subscription_tier or "free"
+            allowed, remaining = await quota_service.check_quota(user.id, user_tier)
+            
+            if not allowed:
+                quota_info = await quota_service.get_quota_info(user.id, user_tier)
+                yield {
+                    "type": "error",
+                    "error": "Daily message limit reached",
+                    "code": "QUOTA_EXCEEDED",
+                    "quota": {
+                        "tier": user_tier,
+                        "limit": quota_info["limit"],
+                        "used": quota_info["used"],
+                        "remaining": 0,
+                        "reset_in_seconds": quota_info["reset_in_seconds"]
+                    }
                 }
                 return
             
@@ -159,6 +181,13 @@ class ChatService:
                 if not assistant_message:
                     logger.warning(f"Failed to save assistant message for conversation {conversation_id}")
             
+            # Increment quota counter (only after successful LLM response)
+            await quota_service.increment_daily_messages(user.id)
+            
+            # Get updated quota info for response
+            user_tier = user.subscription_tier or "free"
+            quota_info = await quota_service.get_quota_info(user.id, user_tier)
+            
             # Send completion metadata
             end_time = datetime.utcnow()
             duration = (end_time - start_time).total_seconds()
@@ -169,7 +198,13 @@ class ChatService:
                 "provider_used": provider_used,
                 "duration_seconds": duration,
                 "message_length": len(response_content),
-                "timestamp": end_time.isoformat()
+                "timestamp": end_time.isoformat(),
+                "quota": {
+                    "tier": quota_info["tier"],
+                    "remaining": quota_info["remaining"],
+                    "limit": quota_info["limit"],
+                    "reset_in_seconds": quota_info["reset_in_seconds"]
+                }
             }
             
         except Exception as e:
@@ -441,12 +476,14 @@ class ChatService:
         Simple chat processing pipeline that coordinates LLM and conversation.
         
         Pipeline:
-        1. Validate character access
-        2. Get/create conversation
-        3. Save user message
-        4. Get LLM response (from Task 5)
-        5. Save AI message
-        6. Return response
+        1. Check message quota
+        2. Validate character access
+        3. Get/create conversation
+        4. Save user message
+        5. Get LLM response (from Task 5)
+        6. Save AI message
+        7. Increment quota counter
+        8. Return response
         
         Args:
             user_id: User ID
@@ -457,7 +494,38 @@ class ChatService:
             Dict[str, Any]: Processing result with response or error
         """
         try:
-            # Step 1: Validate character access
+            # Step 1: Check message quota
+            async with get_db_session() as db:
+                from sqlalchemy import select
+                result = await db.execute(select(User).where(User.id == user_id))
+                user = result.scalar_one_or_none()
+                
+                if not user:
+                    return {
+                        "success": False,
+                        "error": "User not found",
+                        "code": "USER_NOT_FOUND"
+                    }
+                
+                user_tier = user.subscription_tier or "free"
+                allowed, remaining = await quota_service.check_quota(user_id, user_tier)
+                
+                if not allowed:
+                    quota_info = await quota_service.get_quota_info(user_id, user_tier)
+                    return {
+                        "success": False,
+                        "error": "Daily message limit reached",
+                        "code": "QUOTA_EXCEEDED",
+                        "quota": {
+                            "tier": user_tier,
+                            "limit": quota_info["limit"],
+                            "used": quota_info["used"],
+                            "remaining": 0,
+                            "reset_in_seconds": quota_info["reset_in_seconds"]
+                        }
+                    }
+            
+            # Step 2: Validate character access
             character = await character_service.get_character_by_id(character_id)
             if not character:
                 return {
@@ -466,7 +534,7 @@ class ChatService:
                     "code": "CHARACTER_NOT_FOUND"
                 }
             
-            # Step 2: Get/create conversation using our new conversation service
+            # Step 3: Get/create conversation using our new conversation service
             conversation = await conversation_service.get_or_create_conversation(
                 user_id, character_id
             )
@@ -477,14 +545,14 @@ class ChatService:
                     "code": "CONVERSATION_ERROR"
                 }
             
-            # Step 3: Save user message with cache update
+            # Step 4: Save user message with cache update
             user_message = await conversation_service.add_message_with_cache_update(
                 conversation.id, "user", message, user_id, character_id
             )
             if not user_message:
                 logger.warning(f"Failed to save user message for conversation {conversation.id}")
             
-            # Step 4: Get LLM response (from Task 5)
+            # Step 5: Get LLM response (from Task 5)
             # Get conversation context for LLM
             context_messages = await conversation_context.get_message_context(
                 conversation.id, limit=5
@@ -542,14 +610,20 @@ class ChatService:
                     "conversation_id": conversation.id
                 }
             
-            # Step 5: Save AI message with cache update
+            # Step 6: Save AI message with cache update
             ai_message = await conversation_service.add_message_with_cache_update(
                 conversation.id, "assistant", response_content, user_id, character_id
             )
             if not ai_message:
                 logger.warning(f"Failed to save AI message for conversation {conversation.id}")
             
-            # Step 6: Return response
+            # Step 7: Increment quota counter (only after successful LLM response)
+            await quota_service.increment_daily_messages(user_id)
+            
+            # Step 8: Get updated quota info for response headers
+            quota_info = await quota_service.get_quota_info(user_id, user_tier)
+            
+            # Return response with quota information
             return {
                 "success": True,
                 "response": response_content,
@@ -561,7 +635,13 @@ class ChatService:
                 },
                 "provider": provider_used,
                 "user_message_id": user_message.id if user_message else None,
-                "ai_message_id": ai_message.id if ai_message else None
+                "ai_message_id": ai_message.id if ai_message else None,
+                "quota": {
+                    "tier": quota_info["tier"],
+                    "remaining": quota_info["remaining"],
+                    "limit": quota_info["limit"],
+                    "reset_in_seconds": quota_info["reset_in_seconds"]
+                }
             }
             
         except Exception as e:

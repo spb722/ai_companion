@@ -101,5 +101,5 @@ cython_debug/
 # OS specific
 .DS_Store
 
-# Task Master files
-.taskmaster/
+# Task Master files - commented out to include in git
+# .taskmaster/

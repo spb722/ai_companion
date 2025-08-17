@@ -135,17 +135,48 @@ async def send_message(
                 headers=sse_headers
             )
         else:
-            # Return complete response
-            response_parts = []
-            async for chunk in chat_service.process_message(
-                user=current_user,
-                message_content=request.message,
-                character_id=character.id,
-                stream=False
-            ):
-                response_parts.append(chunk)
+            # Return complete response using quota-enabled pipeline
+            result = await chat_service.process_chat_message(
+                user_id=current_user.id,
+                message=request.message,
+                character_id=character.id
+            )
             
-            return {"messages": response_parts}
+            if not result.get("success"):
+                # Handle quota exceeded or other errors
+                if result.get("code") == "QUOTA_EXCEEDED":
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=result
+                    )
+                else:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=result
+                    )
+            
+            # Convert the result to the expected format
+            messages = [
+                {
+                    "type": "metadata",
+                    "conversation_id": result["conversation_id"],
+                    "character": result["character"],
+                    "provider": result["provider"]
+                },
+                {
+                    "type": "content",
+                    "content": result["response"],
+                    "provider": result["provider"]
+                },
+                {
+                    "type": "complete",
+                    "conversation_id": result["conversation_id"],
+                    "provider_used": result["provider"],
+                    "quota": result["quota"]
+                }
+            ]
+            
+            return {"messages": messages}
             
     except Exception as e:
         logger.error(f"Error sending message for user {current_user.id}: {e}")

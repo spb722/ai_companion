@@ -1,0 +1,861 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "AI Companion - Rate Limiting & Quota Testing",
+		"description": "Comprehensive testing collection for rate limiting and message quota features",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Setup & Authentication",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Register Test User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    pm.environment.set(\"access_token\", jsonData.access_token);",
+									"    pm.environment.set(\"user_id\", jsonData.user.id);",
+									"    console.log(\"Access token saved:\", jsonData.access_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"quota_test_{{$timestamp}}@example.com\",\n    \"password\": \"testpass123\",\n    \"preferred_language\": \"en\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Characters",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.characters && jsonData.characters.length > 0) {",
+									"        pm.environment.set(\"character_id\", jsonData.characters[0].id);",
+									"        console.log(\"Character ID saved:\", jsonData.characters[0].id);",
+									"        console.log(\"Character Name:\", jsonData.characters[0].name);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/characters",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"characters"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Select Character",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"character_id\": {{character_id}}\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat/switch-character",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"chat",
+								"switch-character"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "2. Rate Limiting Tests",
+			"item": [
+				{
+					"name": "Rate Limit Test 1-5",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Rate Limit Test 6-10",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Rate Limit Test 11 (Should Fail)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Rate limit should be exceeded\", function () {",
+									"    pm.expect(pm.response.code).to.equal(429);",
+									"});",
+									"",
+									"pm.test(\"Response should contain rate limit error\", function () {",
+									"    const jsonData = pm.response.json();",
+									"    pm.expect(jsonData.detail.code).to.equal(\"RATE_LIMIT_EXCEEDED\");",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"health"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check Rate Limit Headers",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Rate limit headers should be present\", function () {",
+									"    pm.expect(pm.response.headers.get(\"X-RateLimit-Limit\")).to.exist;",
+									"    pm.expect(pm.response.headers.get(\"X-RateLimit-Remaining\")).to.exist;",
+									"    pm.expect(pm.response.headers.get(\"X-RateLimit-Reset\")).to.exist;",
+									"});",
+									"",
+									"console.log(\"Rate Limit Headers:\");",
+									"console.log(\"Limit:\", pm.response.headers.get(\"X-RateLimit-Limit\"));",
+									"console.log(\"Remaining:\", pm.response.headers.get(\"X-RateLimit-Remaining\"));",
+									"console.log(\"Reset:\", pm.response.headers.get(\"X-RateLimit-Reset\"));"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"usage"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "3. Message Quota Tests",
+			"item": [
+				{
+					"name": "Check Initial Usage",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"Current tier:\", jsonData.tier);",
+									"    console.log(\"Messages used:\", jsonData.quota.used);",
+									"    console.log(\"Messages remaining:\", jsonData.quota.remaining);",
+									"    console.log(\"Daily limit:\", jsonData.quota.limit);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"usage"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Send Message 1-5 (Batch)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.quota) {",
+									"        console.log(\"Message sent successfully!\");",
+									"        console.log(\"Remaining messages:\", jsonData.quota.remaining);",
+									"    }",
+									"} else {",
+									"    console.log(\"Request failed:\", pm.response.text());",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"Test message number {{$randomInt}}\",\n    \"stream\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat/send",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"chat",
+								"send"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Check Usage After Messages",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"Updated usage - Used:\", jsonData.quota.used);",
+									"    console.log(\"Updated usage - Remaining:\", jsonData.quota.remaining);",
+									"    pm.environment.set(\"messages_used\", jsonData.quota.used);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"usage"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Send Messages Until Quota Exceeded",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 400) {",
+									"    const jsonData = pm.response.json();",
+									"    if (jsonData.code === \"QUOTA_EXCEEDED\") {",
+									"        console.log(\"✅ Quota exceeded as expected!\");",
+									"        console.log(\"Limit:\", jsonData.quota.limit);",
+									"        console.log(\"Used:\", jsonData.quota.used);",
+									"        console.log(\"Reset in seconds:\", jsonData.quota.reset_in_seconds);",
+									"        pm.test(\"Quota should be exceeded\", function () {",
+									"            pm.expect(jsonData.code).to.equal(\"QUOTA_EXCEEDED\");",
+									"        });",
+									"    }",
+									"} else if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"Message sent. Remaining:\", jsonData.quota.remaining);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"This should eventually hit quota limit\",\n    \"stream\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat/send",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"chat",
+								"send"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "4. Tier Management Tests",
+			"item": [
+				{
+					"name": "Get User Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"Current tier:\", jsonData.subscription_tier);",
+									"    console.log(\"Email:\", jsonData.email);",
+									"    console.log(\"Quota info:\", jsonData.quota);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/profile",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"profile"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Upgrade to Pro Tier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"✅ Tier upgrade successful!\");",
+									"    console.log(\"New tier:\", jsonData.user.subscription_tier);",
+									"    console.log(\"New quota limit:\", jsonData.quota.limit);",
+									"    console.log(\"Messages remaining:\", jsonData.quota.remaining);",
+									"    ",
+									"    pm.test(\"Tier should be upgraded to pro\", function () {",
+									"        pm.expect(jsonData.user.subscription_tier).to.equal(\"pro\");",
+									"        pm.expect(jsonData.quota.limit).to.equal(500);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tier\": \"pro\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/tier",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"tier"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Verify Pro Tier Usage",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"Pro tier verification:\");",
+									"    console.log(\"Tier:\", jsonData.tier);",
+									"    console.log(\"Daily limit:\", jsonData.quota.limit);",
+									"    console.log(\"Available tiers:\", jsonData.available_tiers);",
+									"    ",
+									"    pm.test(\"Should show pro tier with 500 limit\", function () {",
+									"        pm.expect(jsonData.tier).to.equal(\"pro\");",
+									"        pm.expect(jsonData.quota.limit).to.equal(500);",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"usage"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test Pro Tier Message",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"✅ Pro tier message sent successfully!\");",
+									"    console.log(\"Response:\", jsonData.response.substring(0, 100) + \"...\");",
+									"    console.log(\"Remaining pro messages:\", jsonData.quota.remaining);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"Hello from Pro tier! Tell me about the benefits of upgrading.\",\n    \"stream\": false\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat/send",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"chat",
+								"send"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Downgrade to Free Tier",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const jsonData = pm.response.json();",
+									"    console.log(\"Tier downgrade successful!\");",
+									"    console.log(\"New tier:\", jsonData.user.subscription_tier);",
+									"    console.log(\"New quota limit:\", jsonData.quota.limit);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tier\": \"free\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/tier",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"tier"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "5. Streaming & Advanced Tests",
+			"item": [
+				{
+					"name": "Test SSE Streaming",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Accept",
+								"value": "text/event-stream"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"message\": \"Tell me a short story about technology\",\n    \"stream\": true\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/chat/send",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"chat",
+								"send"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test Invalid Tier Upgrade",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Should reject invalid tier\", function () {",
+									"    pm.expect(pm.response.code).to.equal(422);",
+									"});",
+									"",
+									"console.log(\"Response:\", pm.response.text());"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{access_token}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"tier\": \"premium\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/tier",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"tier"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Test Unauthorized Access",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Should return 401 for unauthorized access\", function () {",
+									"    pm.expect(pm.response.code).to.equal(401);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/v1/users/usage",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"v1",
+								"users",
+								"usage"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000",
+			"type": "string"
+		}
+	]
+}

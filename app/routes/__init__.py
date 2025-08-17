@@ -12,11 +12,15 @@ from .health import router as health_router
 from .auth import router as auth_router
 from .characters import router as characters_router
 from .chat import router as chat_router
+from .users import router as users_router
+from .billing import router as billing_router
 
 # Register route modules
 api_router.include_router(health_router, tags=["health"])
 api_router.include_router(auth_router, tags=["auth"])
 api_router.include_router(characters_router, tags=["characters"])
 api_router.include_router(chat_router, tags=["chat"])
+api_router.include_router(users_router, tags=["users"])
+api_router.include_router(billing_router, tags=["billing"])
 
 __all__ = ["api_router"]

@@ -1,0 +1,557 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Setup FastAPI Project with Core Infrastructure",
+        "description": "Initialize FastAPI project with Docker setup including MySQL, Redis, and basic development environment",
+        "details": "Create FastAPI project structure with main.py and app/ directory. Setup requirements.txt with FastAPI, uvicorn, SQLAlchemy, aiomysql, redis-py, python-multipart, python-jose, supabase-py. Configure .env file for environment variables (DATABASE_URL, REDIS_URL, SUPABASE_URL, SUPABASE_ANON_KEY, OPENAI_API_KEY). Create docker-compose.yml with FastAPI app, MySQL 8.0, and Redis services. Setup basic Redis connection for sessions and caching. Configure CORS middleware and basic logging. Create health check endpoint (/health) to verify all services are running.",
+        "testStrategy": "Verify all Docker containers start successfully, Redis connection works, MySQL is accessible, environment variables load correctly, and health endpoint returns 200 with service status",
+        "priority": "high",
+        "dependencies": [],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize FastAPI Project Structure and Dependencies",
+            "description": "Create the basic FastAPI project structure with proper directory organization and install all required dependencies",
+            "dependencies": [],
+            "details": "Create main project directory structure: app/ (core application code), main.py (FastAPI app entry point), requirements.txt with dependencies (FastAPI, uvicorn, SQLAlchemy, aiomysql, redis-py, python-multipart, python-jose[cryptography], supabase-py, python-dotenv). Initialize app/__init__.py, app/config.py for settings, app/models/ for database models, app/routes/ for API endpoints, app/services/ for business logic. Set up basic FastAPI application instance with metadata and version info.",
+            "status": "done",
+            "testStrategy": "Verify project structure exists, all dependencies install without conflicts, and basic FastAPI app starts successfully with uvicorn"
+          },
+          {
+            "id": 2,
+            "title": "Configure Environment Variables and Settings Management",
+            "description": "Set up comprehensive environment configuration with validation and default values",
+            "dependencies": [
+              "1.1"
+            ],
+            "details": "Create .env.example template with all required environment variables: DATABASE_URL (MySQL connection string), REDIS_URL, SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY, OPENAI_API_KEY, SECRET_KEY for JWT. Implement app/config.py using Pydantic BaseSettings for environment validation with proper types and defaults. Add .env to .gitignore. Create settings instance that can be imported throughout the application.",
+            "status": "done",
+            "testStrategy": "Test environment loading with both valid and invalid values, verify settings validation works, and ensure sensitive data is properly excluded from version control"
+          },
+          {
+            "id": 3,
+            "title": "Create Docker Compose Infrastructure Setup",
+            "description": "Set up Docker Compose configuration for FastAPI app, MySQL database, and Redis cache services",
+            "dependencies": [
+              "1.2"
+            ],
+            "details": "Create docker-compose.yml with three services: fastapi-app (Python 3.11 image, port 8000, environment variables, volumes for code), mysql (MySQL 8.0 image, port 3306, persistent volume, database initialization), redis (Redis alpine image, port 6379). Create Dockerfile for FastAPI app with Python 3.11-slim base, pip install requirements, expose port 8000, CMD uvicorn. Add docker-compose.dev.yml for development overrides with hot reload. Include health checks for all services.",
+            "status": "done",
+            "testStrategy": "Verify all containers start successfully, services can communicate with each other, database accepts connections, Redis is accessible, and FastAPI app responds on port 8000"
+          },
+          {
+            "id": 4,
+            "title": "Implement Basic FastAPI Application with Middleware and CORS",
+            "description": "Configure FastAPI application instance with essential middleware, CORS settings, and basic routing structure",
+            "dependencies": [
+              "1.3"
+            ],
+            "details": "Update main.py to create FastAPI app instance with title, description, version. Add CORS middleware with appropriate origins for development and production. Configure basic logging with structured format and log levels. Add middleware for request/response logging and timing. Create app/routes/__init__.py and basic router structure. Set up exception handlers for common HTTP errors and validation errors. Configure OpenAPI documentation settings.",
+            "status": "done",
+            "testStrategy": "Test CORS headers are set correctly, middleware processes requests properly, logging outputs expected format, exception handlers return appropriate error responses, and OpenAPI docs are accessible"
+          },
+          {
+            "id": 5,
+            "title": "Create Health Check Endpoint and Service Validation",
+            "description": "Implement comprehensive health check endpoint that verifies all core services are operational",
+            "dependencies": [
+              "1.4"
+            ],
+            "details": "Create app/routes/health.py with GET /health endpoint. Implement health check functions for MySQL (test connection and simple query), Redis (ping and set/get test), and environment variables (verify critical keys exist). Return JSON response with overall status, individual service statuses, timestamp, and version info. Add app/services/health.py for health check logic. Include dependency injection for database and Redis connections. Handle timeouts and connection failures gracefully.",
+            "status": "done",
+            "testStrategy": "Verify health endpoint returns 200 when all services are up, returns 503 when any service is down, individual service checks work correctly, and response includes all expected status information"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Simplified Database Schema and Models",
+        "description": "Design and implement core MySQL database schema focusing on essential tables only",
+        "details": "Create SQLAlchemy models for: Users (id, supabase_id, email, username, preferred_language, subscription_tier, daily_message_count, message_reset_at, created_at), Characters (id, name, base_prompt, avatar_url, personality_type, is_premium, created_at), Conversations (id, user_id, character_id, started_at, last_message_at, message_count), Messages (id, conversation_id, sender_type, content, created_at). Setup Alembic for migrations. Create indexes for frequent queries (user_id, conversation_id). Skip complex features like user interests and detailed subscription tracking for now.",
+        "testStrategy": "Run Alembic migrations successfully, verify table creation, test CRUD operations on each model, validate foreign key constraints work correctly",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "done",
+        "subtasks": []
+      },
+      {
+        "id": 3,
+        "title": "Supabase Authentication Integration",
+        "description": "Implement basic Supabase authentication with JWT validation and user management",
+        "details": "Install and configure supabase-py client. Create authentication service with register, login, and token refresh functionality. Implement JWT validation middleware for protected routes using Supabase's JWT verification. Create user registration endpoint that syncs with local database. Build simple user profile endpoints (GET/PUT /api/users/profile) for language preference. Create dependency injection for getting current user. Handle token validation and standardized error responses.",
+        "testStrategy": "Test user registration flow, login functionality, JWT validation on protected routes, token refresh, profile update, and standardized error handling",
+        "priority": "high",
+        "dependencies": [
+          2
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Supabase Client Service",
+            "description": "Set up simple Supabase client initialization and configuration service",
+            "dependencies": [],
+            "details": "Create app/services/supabase.py with Supabase client initialization using credentials from app/config.py. Initialize standard client using anon_key (skip admin client for MVP). Add connection health check method to verify Supabase connectivity. Configure proper error handling and logging for connection issues. Export client instance for use in other services. Add helper method to validate Supabase configuration on startup.",
+            "status": "done",
+            "testStrategy": "Test client initialization, connection health check, credential loading from environment variables, and error handling for missing/invalid credentials"
+          },
+          {
+            "id": 2,
+            "title": "Implement Authentication Service",
+            "description": "Create authentication service with register, login, and token refresh functionality",
+            "dependencies": [
+              "3.1"
+            ],
+            "details": "Create app/services/auth.py with core authentication methods. Implement register_user() to create account in Supabase and sync user data to local MySQL database (users table) - auto-generate username from email if not provided. Add login_user() to authenticate and return both access and refresh tokens with expiry info. Implement refresh_token() method for token renewal before expiry. Create get_user_by_token() helper for user retrieval. Handle Supabase auth errors (user exists, weak password, invalid credentials) with specific error codes. Add rate limiting helper for login attempts (5 per minute per IP). Skip logout for MVP - tokens will expire naturally.",
+            "status": "done",
+            "testStrategy": "Test registration with duplicate emails, login with invalid credentials, token refresh flow, MySQL sync verification, rate limiting, and error code consistency"
+          },
+          {
+            "id": 3,
+            "title": "Create JWT Validation Middleware",
+            "description": "Implement simplified middleware for JWT token validation on protected routes",
+            "dependencies": [
+              "3.2"
+            ],
+            "details": "Create app/middleware/auth.py with JWT validation middleware. Implement get_current_user() dependency function that uses Supabase's built-in session validation (supabase.auth.get_user()) instead of manual JWT parsing. Extract user info from validated token and fetch full user object from local database. Add @require_auth decorator for protected routes. Handle token expiration with automatic refresh attempt before failing. Handle missing or malformed authorization headers. Return standardized error responses with proper HTTP status codes (401 for unauthorized, 403 for forbidden).",
+            "status": "done",
+            "testStrategy": "Test JWT validation on protected routes, automatic token refresh, expired token handling, missing token responses, and malformed token errors"
+          },
+          {
+            "id": 4,
+            "title": "Create Authentication API Endpoints",
+            "description": "Build REST API endpoints for authentication operations",
+            "dependencies": [
+              "3.3"
+            ],
+            "details": "Create app/routes/auth.py with FastAPI router for auth endpoints: POST /api/v1/auth/register (email, password, optional username), POST /api/v1/auth/login (email, password), POST /api/v1/auth/refresh (refresh_token), and GET /api/v1/auth/me (protected). Use Pydantic models for request/response validation with proper email and password strength validation. Return both access and refresh tokens on successful login/register. Include user object in login response for immediate UI updates. Add rate limiting to login endpoint. Handle validation errors with standardized error format. Register router in main app with proper prefix and tags.",
+            "status": "done",
+            "testStrategy": "Test all endpoints with valid/invalid data, rate limiting on login, token generation and refresh, protected route access, and response format consistency"
+          },
+          {
+            "id": 5,
+            "title": "Implement User Profile Management",
+            "description": "Create user profile endpoints for profile data and language preferences",
+            "dependencies": [
+              "3.4"
+            ],
+            "details": "Create app/routes/users.py with profile endpoints: GET /api/v1/users/profile and PUT /api/v1/users/profile. Allow users to view and update profile information including preferred_language (validate against supported languages list), username, and display_name. Use JWT middleware to get current user automatically. Create Pydantic models for ProfileResponse and ProfileUpdateRequest with proper validation. Implement partial updates (only update provided fields). Add language auto-detection from Accept-Language header as fallback. Cache profile data in Redis after updates (5 minute TTL). Return updated profile data with success message.",
+            "status": "done",
+            "testStrategy": "Test profile retrieval, partial updates, language preference validation, authentication requirement, Redis caching, and invalid field handling"
+          },
+          {
+            "id": 6,
+            "title": "Standardize Error Response System",
+            "description": "Create consistent error response format for all authentication failures",
+            "dependencies": [
+              "3.5"
+            ],
+            "details": "Create app/utils/auth_responses.py with standardized error response models and helpers. Define error codes enum: INVALID_CREDENTIALS, TOKEN_EXPIRED, TOKEN_INVALID, USER_EXISTS, WEAK_PASSWORD, RATE_LIMITED, UNAUTHORIZED, FORBIDDEN. Create ErrorResponse Pydantic model with structure: {\"success\": false, \"error\": {\"code\": \"...\", \"message\": \"...\", \"details\": {}}}. Add success response wrapper for consistency. Create response factory functions for common scenarios. Ensure all auth endpoints use these standardized responses. Map Supabase errors to our error codes. Include request_id for debugging in production.",
+            "status": "done",
+            "testStrategy": "Test all error scenarios return consistent format, proper HTTP status codes, error code mapping from Supabase, and success response wrapping"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Basic Character System",
+        "description": "Build simple character management system with 3 characters in 3 languages",
+        "details": "Create character service with listing endpoint (GET /api/characters). Setup 3 default characters with distinct personalities (Friendly, Playful, Caring). Implement character selection endpoint (POST /api/characters/{id}/select). Support 3 languages initially: English, Hindi, and Tamil. Create simple prompt templates for each character personality. Store character selection in Redis for quick access. Defer custom naming to post-MVP.",
+        "testStrategy": "Test character listing, character selection, language-specific prompt generation, Redis caching of selection, and premium character access control",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Character Database Migration and Seed Data",
+            "description": "Set up character table migration and seed with 3 default characters",
+            "dependencies": [],
+            "details": "Create Alembic migration for characters table if not exists. Create data seeding script in app/db/seed_characters.py with 3 default characters: 'Priya' (Friendly - warm, supportive), 'Arjun' (Playful - fun, witty), 'Meera' (Caring - empathetic, nurturing). Set first 2 as free (is_premium=false) and last one as premium. Include base personality descriptions in base_prompt field. Add avatar URLs (use placeholder images initially). Run seeding as part of migration or separate command.",
+            "status": "done",
+            "testStrategy": "Verify migration creates table correctly, seed data populates 3 characters, character attributes are set properly, and idempotent seeding (doesn't duplicate on re-run)"
+          },
+          {
+            "id": 2,
+            "title": "Build Character Service Layer",
+            "description": "Create character service for all character-related operations",
+            "dependencies": [
+              "4.1"
+            ],
+            "details": "Create app/services/character_service.py with CharacterService class. Implement get_all_characters() to list characters based on user tier. Add get_character_by_id() with premium validation. Create select_character() to store selection in Redis with key 'user:{user_id}:character' (24hr TTL). Add get_user_selected_character() to retrieve from cache or database. Include character validation helper can_user_access_character(). Use dependency injection for database and Redis connections.",
+            "status": "done",
+            "testStrategy": "Test character retrieval, premium filtering, Redis caching operations, cache miss handling, and access control validation"
+          },
+          {
+            "id": 3,
+            "title": "Create Multilingual Prompt Template System",
+            "description": "Build prompt template system for 3 languages and 3 personalities",
+            "dependencies": [
+              "4.2"
+            ],
+            "details": "Create app/prompts/character_prompts.py with prompt templates as Python dictionaries. Structure: {personality_type: {language: template}}. Define templates for Friendly/Playful/Caring in English/Hindi/Tamil. Templates should include: system role, personality traits, conversation style, and language-specific cultural nuances. Create get_character_prompt(character_id, language) method. Include fallback to English if language not available. Keep prompts concise (under 200 tokens) for cost efficiency.",
+            "status": "done",
+            "testStrategy": "Test prompt retrieval for all 9 combinations (3 personalities × 3 languages), fallback to English, prompt token count validation, and cultural appropriateness"
+          },
+          {
+            "id": 4,
+            "title": "Implement Character API Endpoints",
+            "description": "Create REST endpoints for character operations",
+            "dependencies": [
+              "4.2",
+              "4.3"
+            ],
+            "details": "Create app/api/v1/characters.py router. Implement GET /api/v1/characters to list available characters (filter by user tier). Add POST /api/v1/characters/{id}/select for character selection (validate access, store in Redis). Create GET /api/v1/characters/current to get user's selected character. Use existing auth dependency for user context. Return appropriate error for premium character access by free users (403 Forbidden). Include character details with language-specific names if applicable.",
+            "status": "done",
+            "testStrategy": "Test endpoints with authenticated/unauthenticated requests, free user accessing premium character, character selection persistence, and proper HTTP status codes"
+          },
+          {
+            "id": 5,
+            "title": "Add Character Integration to User Session",
+            "description": "Integrate character selection with user session management",
+            "dependencies": [
+              "4.4"
+            ],
+            "details": "Extend user session to include selected_character_id. Update get_current_user dependency to include character info when available. Create middleware or helper to ensure user has selected character before chat. Add character context to chat-related endpoints. Handle character switch scenarios (clear conversation context). Set default character for new users (first free character).",
+            "status": "done",
+            "testStrategy": "Test session includes character info, chat requires character selection, character switching clears context, and new user default assignment"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Configurable LLM Integration (Groq/OpenAI)",
+        "description": "Build provider-agnostic LLM integration using OpenAI SDK that can easily switch between Groq and OpenAI",
+        "details": "Create abstracted LLM service using OpenAI SDK that works with both Groq (primary) and OpenAI (fallback) by configuring base_url. Start with Groq for cost efficiency using mixtral-8x7b model. Implement simple prompt engineering combining character personality with user messages. Add basic conversation context (last 5 messages). Include provider failover logic and simple error handling. Add 1-second delay for natural feeling.",
+        "testStrategy": "Test Groq connectivity, provider switching configuration, prompt generation, error handling with fallback, conversation context, and streaming responses",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Provider-Agnostic LLM Configuration",
+            "description": "Build configuration system that supports multiple LLM providers through environment variables",
+            "dependencies": [],
+            "details": "Update app/config.py to add LLM provider configuration: LLM_PROVIDER (groq/openai), GROQ_API_KEY, OPENAI_API_KEY, LLM_MODEL_MAPPING dict. Create provider configurations: Groq (base_url='https://api.groq.com/openai/v1', models=['mixtral-8x7b-32768', 'llama2-70b-4096']), OpenAI (base_url='https://api.openai.com/v1', models=['gpt-3.5-turbo', 'gpt-4']). Add environment variable validation to ensure required keys are present. Create model mapping for automatic model selection based on provider.\n<info added on 2025-08-16T08:36:23.167Z>\nSuccessfully implemented LLM provider configuration in app/config.py:\n\n1. Added LLMProviderConfig model with name, base_url, api_key, and models fields\n2. Created LLMSettings with primary_provider (default: groq), fallback_provider (default: openai), and providers dict\n3. Added environment variables: LLM_PRIMARY_PROVIDER, LLM_FALLBACK_PROVIDER, GROQ_API_KEY, OPENAI_API_KEY\n4. Implemented llm property method that configures both Groq and OpenAI providers with their respective endpoints and models\n5. Added validation to ensure at least one provider has an API key configured\n6. Maintained backward compatibility with existing openai property\n\nConfiguration ready for subtask 5.2 - building the abstracted LLM service layer.\n</info added on 2025-08-16T08:36:23.167Z>",
+            "status": "done",
+            "testStrategy": "Test configuration loading for both providers, environment variable validation, model mapping correctness, and configuration switching"
+          },
+          {
+            "id": 2,
+            "title": "Build Abstracted LLM Service Layer",
+            "description": "Create unified LLM service that works with any OpenAI-compatible provider",
+            "dependencies": [
+              "5.1"
+            ],
+            "details": "Create app/services/llm_service.py with LLMService class. Initialize OpenAI client dynamically based on config: client = OpenAI(api_key=config.api_key, base_url=config.base_url). Implement get_client() method that returns configured client. Add get_model() to return appropriate model based on provider (mixtral-8x7b-32768 for Groq, gpt-3.5-turbo for OpenAI). Create provider_info() method to return current provider details. Include connection test method test_connection() with simple completion. Add automatic fallback logic: try Groq first, fallback to OpenAI if configured.\n<info added on 2025-08-16T08:37:56.156Z>\nImplementation completed successfully. Full LLM service layer built with:\n\n- LLMService class with dynamic OpenAI client initialization for multiple providers\n- get_client() method with automatic provider fallback\n- get_model() method returning provider-specific models (mixtral-8x7b-32768 for Groq, gpt-3.5-turbo for OpenAI)\n- provider_info() method with detailed provider and model information\n- test_connection() method for provider availability verification\n- get_available_provider() with intelligent failover: primary -> fallback -> any available\n- switch_provider() for manual provider switching\n- Comprehensive logging and error handling\n- Global llm_service instance created for application use\n\nService fully operational and ready for conversation context manager integration in subtask 5.3.\n</info added on 2025-08-16T08:37:56.156Z>",
+            "status": "done",
+            "testStrategy": "Test client initialization for both providers, model selection logic, connection testing, provider switching, and fallback mechanism"
+          },
+          {
+            "id": 3,
+            "title": "Implement Conversation Context Manager",
+            "description": "Build conversation management with efficient context handling",
+            "dependencies": [
+              "5.2"
+            ],
+            "details": "Create app/services/conversation_context.py. Implement get_or_create_conversation() using Conversation model. Add get_message_context(conversation_id, limit=5) for recent messages. Create format_for_llm() to convert messages to OpenAI format: [{'role': 'system/user/assistant', 'content': '...'}]. Cache context in Redis (key: 'conv:{id}:ctx', TTL: 1hr). Add message_token_estimate() using simple heuristic (1 token ≈ 4 chars) since Groq/OpenAI use similar tokenization. Keep context under 2000 tokens for cost efficiency.\n<info added on 2025-08-16T09:23:18.228Z>\nSuccessfully implemented conversation context manager in app/services/conversation_context.py:\n\n1. Created ConversationContext class with efficient Redis caching and database operations\n2. Implemented get_or_create_conversation() using SQLAlchemy 2.0 async patterns with proper session management\n3. Added get_message_context() with Redis caching (1hr TTL) and configurable message limit (default: 5)\n4. Created format_for_llm() to convert messages to OpenAI format: [{'role': 'system/user/assistant', 'content': '...'}]\n5. Implemented estimate_message_tokens() using 1 token ≈ 4 chars heuristic with message overhead calculation\n6. Added save_user_message() and save_assistant_message() with automatic conversation metadata updates\n7. Implemented conversation cache management with automatic clearing on new messages\n8. Created get_conversation_stats() for conversation metadata retrieval\n9. Used proper async SQLAlchemy 2.0 patterns with select() statements and get_db_session()\n10. Added comprehensive error handling and logging throughout\n\nContext manager ready for subtask 5.4 - creating unified prompt builder.\n</info added on 2025-08-16T09:23:18.228Z>",
+            "status": "done",
+            "testStrategy": "Test conversation creation, message retrieval limit enforcement, Redis caching, format conversion, token estimation accuracy"
+          },
+          {
+            "id": 4,
+            "title": "Create Unified Prompt Builder",
+            "description": "Build prompt system that works across providers with character personalities",
+            "dependencies": [
+              "5.3"
+            ],
+            "details": "Create app/services/prompt_builder.py with PromptBuilder class. Implement build_messages(character, context, user_message, language) that creates message array compatible with both providers. System prompt template: 'You are {character_name} with personality: {traits}. Respond in {language}. Keep responses under 100 words unless asked for more.' Include provider-specific optimizations: Groq (concise prompts <150 tokens), OpenAI (can handle longer prompts). Add get_system_prompt(character, language) and format_conversation_history(messages) methods.\n<info added on 2025-08-16T09:24:58.075Z>\nImplementation completed successfully. Created comprehensive PromptBuilder service with provider-specific optimizations, token management, and error handling. Key features include dynamic prompt generation for characters/languages, intelligent context trimming, and OpenAI-compatible message formatting. Service is ready for integration with chat engine in subtask 5.5.\n</info added on 2025-08-16T09:24:58.075Z>",
+            "status": "done",
+            "testStrategy": "Test prompt generation for all characters/languages, verify format compatibility, token efficiency, provider-specific optimization"
+          },
+          {
+            "id": 5,
+            "title": "Build Chat Service with Provider Failover",
+            "description": "Create main chat service with automatic provider failover and streaming",
+            "dependencies": [
+              "5.2",
+              "5.3",
+              "5.4"
+            ],
+            "details": "Create app/services/chat_service.py. Implement async process_message() that: validates character selection, gets conversation context, builds prompt, attempts Groq API call first. On Groq failure (rate limit/error), automatically failover to OpenAI if configured. Add 1-second delay using asyncio.sleep(1) for natural feel. Implement streaming with stream=True parameter. Handle errors gracefully: rate limits (retry with backoff), API errors (return friendly message), provider unavailable (try fallback). Save messages after successful generation. Log provider used for cost tracking.\n<info added on 2025-08-16T09:28:12.439Z>\n**Implementation completed:** Created comprehensive ChatService class in app/services/chat_service.py with full streaming and failover capabilities. Features include: async message processing pipeline with character validation, conversation management, context retrieval with token validation, intelligent provider failover (primary → fallback → any available), retry logic (max 2 attempts), structured error handling with specific error codes, paginated conversation history, dynamic character switching with Redis caching, service status monitoring, streaming responses with metadata chunks, token limit validation with context reduction, and global service instance with dependency injection. Service is production-ready and provides foundation for FastAPI SSE endpoints in next subtask.\n</info added on 2025-08-16T09:28:12.439Z>",
+            "status": "done",
+            "testStrategy": "Test message processing, provider failover, streaming responses, error handling, rate limit retry, message persistence"
+          },
+          {
+            "id": 6,
+            "title": "Create Chat API Endpoints with SSE",
+            "description": "Build FastAPI endpoints supporting both providers with streaming",
+            "dependencies": [
+              "5.5"
+            ],
+            "details": "Create app/api/v1/chat.py router. Implement POST /api/v1/chat/send with SSE streaming response. Add GET /api/v1/chat/history (paginated). Create GET /api/v1/chat/provider to show current provider status. Include provider switch endpoint POST /api/v1/admin/llm/switch (admin only). Use FastAPI's StreamingResponse for SSE. Format SSE messages: 'data: {\"content\": \"...\", \"provider\": \"groq\"}\\n\\n'. Add proper error responses (400: no character, 503: all providers down). Include X-LLM-Provider header in responses for debugging.\n<info added on 2025-08-16T09:38:43.508Z>\nImplementation completed in app/routes/chat.py with comprehensive FastAPI router including:\n\n- POST /send endpoint with SSE streaming support using proper headers and structured response chunks\n- GET /history with pagination (limit/offset) and validation using Pydantic models\n- POST /switch-character for dynamic character selection during conversations\n- GET /provider endpoint showing real-time provider status with debugging headers\n- Admin endpoints: POST /admin/llm/switch for provider switching and GET /admin/llm/test for connectivity testing\n- Comprehensive error handling with structured HTTP responses and proper status codes\n- CORS-compatible headers and SSE optimization for production deployment\n- Integration registered in app/routes/__init__.py with main application\n\nAll endpoints are production-ready with full streaming capabilities, provider management, and robust error handling as specified.\n</info added on 2025-08-16T09:38:43.508Z>",
+            "status": "done",
+            "testStrategy": "Test streaming with both providers, SSE format validation, provider switching, error handling, pagination, header presence"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Basic Chat Engine with SSE",
+        "description": "Build simple chat system with Server-Sent Events for real-time responses",
+        "details": "Create SSE endpoint for streaming responses (POST /api/chat/send with SSE response). Implement message saving to database after AI response. Build simple conversation management - one active conversation per user. Setup basic message history retrieval (GET /api/chat/history - last 20 messages). Implement SSE formatting with proper headers. Add simple Redis caching for active conversation context (1 hour TTL).",
+        "testStrategy": "Test SSE connection and streaming, message persistence, conversation continuity, concurrent user handling, and browser compatibility",
+        "priority": "high",
+        "dependencies": [
+          5
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Basic Conversation Service",
+            "description": "Build conversation management service for handling user conversations",
+            "dependencies": [],
+            "details": "Create app/services/conversation_service.py with ConversationService class. Implement get_or_create_conversation(user_id, character_id) that finds existing or creates new conversation. Add get_conversation_messages(conversation_id, limit=20) to fetch recent messages. Create add_message(conversation_id, sender_type, content) for saving messages. Use existing Conversation and Message models from database. Keep it simple - one active conversation per user-character pair. No complex threading or archiving.",
+            "status": "done",
+            "testStrategy": "Test conversation creation, message retrieval with limit, message addition, and verify one conversation per user-character pair"
+          },
+          {
+            "id": 2,
+            "title": "Build SSE Streaming Handler",
+            "description": "Create SSE utility for formatting and streaming responses",
+            "dependencies": [
+              "6.1"
+            ],
+            "details": "Create app/utils/sse.py with SSE formatting functions. Implement format_sse(data, event=None, id=None) to create proper SSE format: 'data: {json}\\n\\n'. Add async sse_generator(message_stream) that yields formatted SSE events. Include heartbeat mechanism using asyncio to send ':ping\\n\\n' every 15 seconds to keep connection alive. Create error SSE event format for stream errors. Keep implementation simple without complex event types.",
+            "status": "done",
+            "testStrategy": "Test SSE format compliance, verify heartbeat prevents timeout, test error event formatting, validate JSON serialization in SSE"
+          },
+          {
+            "id": 3,
+            "title": "Implement Chat Processing Pipeline",
+            "description": "Create main chat processing logic that coordinates LLM and conversation",
+            "dependencies": [
+              "6.1",
+              "6.2"
+            ],
+            "details": "Extend app/services/chat_service.py with process_chat_message(user_id, message, character_id) method. Pipeline: validate character access, get/create conversation, save user message, get LLM response (from Task 5), save AI message, return response. Add simple error handling - return error message if LLM fails. Implement async processing for better performance. No complex retry logic or transactions for MVP.",
+            "status": "done",
+            "testStrategy": "Test full message pipeline, verify both messages saved, test error handling, validate async processing"
+          },
+          {
+            "id": 4,
+            "title": "Create Chat REST API Endpoints",
+            "description": "Build FastAPI endpoints for chat functionality with SSE support",
+            "dependencies": [
+              "6.2",
+              "6.3"
+            ],
+            "details": "Create app/api/v1/chat.py router. Implement POST /api/v1/chat/send that returns StreamingResponse with SSE. Add GET /api/v1/chat/history to get last 20 messages (simple query, no pagination). Create GET /api/v1/chat/conversation to get current conversation info. Use existing auth middleware for user context. Set proper SSE headers: Cache-Control: no-cache, Content-Type: text/event-stream, X-Accel-Buffering: no. Return 400 if no character selected.",
+            "status": "done",
+            "testStrategy": "Test SSE streaming with curl and browser, verify auth requirement, test history retrieval, validate SSE headers"
+          },
+          {
+            "id": 5,
+            "title": "Add Simple Redis Caching",
+            "description": "Implement basic Redis caching for active conversations",
+            "dependencies": [
+              "6.4"
+            ],
+            "details": "Extend conversation_service.py with caching methods. Cache conversation context in Redis with key 'conv:{user_id}:{character_id}' containing last 5 messages. Set TTL to 1 hour for all cache entries. Implement cache_conversation_context() and get_cached_context() methods. Update cache on each new message. Use try/except to handle Redis failures gracefully (fallback to database). Keep caching simple - no complex invalidation or warming strategies.",
+            "status": "done",
+            "testStrategy": "Test cache hit/miss scenarios, verify TTL expiration, test graceful degradation on Redis failure, measure performance improvement"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Simple Rate Limiting and Message Quotas",
+        "description": "Implement basic rate limiting and daily message limits without complex tracking",
+        "details": "Create simple rate limiting middleware (10 requests/minute per IP using Redis). Implement daily message counter using Redis with automatic reset at midnight UTC. Set limits: Free tier = 20 messages/day, Pro tier = 500 messages/day. Add message count check before processing chat requests. Return clear error message when limit exceeded. Create manual tier upgrade endpoint for testing (PUT /api/users/upgrade - no payment required).",
+        "testStrategy": "Test rate limit enforcement, daily message counting and reset, limit exceeded responses, and manual tier upgrade",
+        "priority": "medium",
+        "dependencies": [
+          6
+        ],
+        "status": "done",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Rate Limiting Service",
+            "description": "Build simple Redis-based rate limiting service for API protection",
+            "dependencies": [],
+            "details": "Create app/services/rate_limit_service.py with RateLimitService class. Implement simple fixed-window counter using Redis INCR with TTL. Method check_rate_limit(key, limit=10, window=60) returns (allowed, remaining). Use Redis key pattern 'rate:{key}:{timestamp_bucket}'. Keep it simple - no sliding windows. Add get_client_ip() helper to extract IP from request headers (X-Forwarded-For, X-Real-IP, or client host).",
+            "status": "done",
+            "testStrategy": "Test rate limit allows/blocks correctly, verify Redis TTL, test IP extraction from different header types, validate counter reset after window"
+          },
+          {
+            "id": 2,
+            "title": "Build Message Quota Service",
+            "description": "Create service for tracking daily message usage with Redis",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Create app/services/quota_service.py with QuotaService class. Implement increment_daily_messages(user_id) using Redis INCR. Add get_daily_usage(user_id) to check current count. Use Redis key 'quota:{user_id}:{date}' with EXPIREAT set to midnight UTC. Define QUOTA_LIMITS = {'free': 20, 'pro': 500}. Add check_quota(user_id, tier) that returns (allowed, remaining). Simple date-based keys, no complex timezone handling.",
+            "status": "done",
+            "testStrategy": "Test message counting, verify midnight reset with EXPIREAT, test quota checking for different tiers, validate concurrent increments"
+          },
+          {
+            "id": 3,
+            "title": "Create Rate Limiting Middleware",
+            "description": "Build FastAPI middleware for IP-based rate limiting",
+            "dependencies": [
+              "7.1"
+            ],
+            "details": "Create app/middleware/rate_limit.py with RateLimitMiddleware class. Use RateLimitService to check limits per IP (10 req/min). Apply to all API routes automatically. Return 429 Too Many Requests with JSON error and Retry-After header. Include rate limit headers in response: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset. Exclude health check endpoint from rate limiting.",
+            "status": "done",
+            "testStrategy": "Test middleware blocks after limit, verify headers are set correctly, test health endpoint bypass, validate 429 response format"
+          },
+          {
+            "id": 4,
+            "title": "Integrate Quota Checking in Chat Flow",
+            "description": "Add message quota validation to chat processing pipeline",
+            "dependencies": [
+              "7.2"
+            ],
+            "details": "Update app/services/chat_service.py to check quota before processing. Add quota check at start of process_chat_message(). Get user tier from database (default 'free' if not set). Return error response with usage info when quota exceeded: {'error': 'Daily limit reached', 'limit': 20, 'used': 20}. Increment counter only after successful LLM response. Add quota info to successful response headers.",
+            "status": "done",
+            "testStrategy": "Test quota blocks messages at limit, verify increment only on success, test error response format, validate different tier limits"
+          },
+          {
+            "id": 5,
+            "title": "Add Manual Tier Management Endpoint",
+            "description": "Create testing endpoint for tier upgrades without payment",
+            "dependencies": [
+              "7.4"
+            ],
+            "details": "Add PUT /api/v1/users/tier endpoint in app/api/v1/users.py. Accept {'tier': 'free'|'pro'} in request body. Update user's subscription_tier in database. Reset daily quota count when upgrading to pro. Return updated user profile with new tier and remaining quota. Require authentication via existing auth middleware. Add GET /api/v1/users/usage to check current usage and limits.",
+            "status": "done",
+            "testStrategy": "Test tier changes persist in database, verify quota reset on upgrade, test authentication requirement, validate usage endpoint accuracy"
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Basic Caching and Performance Optimization",
+        "description": "Implement simple caching strategies for improved performance",
+        "details": "Setup Redis caching for user sessions (24 hour TTL). Cache character data (update daily). Implement conversation context caching to reduce database queries. Add simple cache-aside pattern for frequently accessed data. Create cache invalidation on user logout and character switch. Skip complex cache warming and analytics. Focus on reducing database load for common operations.",
+        "testStrategy": "Test cache hit/miss scenarios, measure performance improvement, verify cache invalidation, and test graceful degradation on Redis failure",
+        "priority": "medium",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Simple Background Tasks",
+        "description": "Setup basic Celery tasks for essential background operations",
+        "details": "Configure Celery with Redis broker (simple setup). Create daily message count reset task (runs at midnight IST). Implement conversation cleanup task (delete inactive conversations > 7 days). Add simple health monitoring task. Setup basic task failure alerts via logging. Skip complex analytics processing and export features. Use Celery Beat for scheduling with simple crontab.",
+        "testStrategy": "Test Celery worker startup, verify daily reset task execution, test conversation cleanup, and validate task failure handling",
+        "priority": "medium",
+        "dependencies": [
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Razorpay Payment Integration (Optional)",
+        "description": "Add payment processing for premium subscriptions when ready to monetize",
+        "details": "Install Razorpay SDK and configure test account. Create single subscription plan (Premium: ₹299/month). Implement payment initiation endpoint (POST /api/payments/subscribe). Setup webhook for payment confirmation (POST /api/webhooks/razorpay). Update user tier on successful payment. Add basic subscription status checking. Implement simple payment failure handling. Store minimal payment records (user_id, subscription_id, status).",
+        "testStrategy": "Test payment flow in Razorpay test mode, webhook signature verification, subscription status updates, and payment failure scenarios",
+        "priority": "low",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Additional Languages and Characters",
+        "description": "Expand language support and character roster based on user demand",
+        "details": "Add support for remaining 8 languages: Telugu, Bengali, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia. Create 3 additional free characters and 6 premium characters. Implement language detection for auto-selection. Add character personality variations for each language. Create more sophisticated prompt templates. Update character selection UI to handle more options.",
+        "testStrategy": "Test each new language, verify character responses in all languages, test language auto-detection, and validate premium character access control",
+        "priority": "low",
+        "dependencies": [
+          10
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Advanced Pro Features",
+        "description": "Implement advanced features for premium users after MVP validation",
+        "details": "Enable multiple parallel conversations (up to 3 per user). Implement character switching with history preservation. Add conversation export as JSON/TXT. Create random character matcher based on mood. Implement basic analytics dashboard for users. Add voice message support (future consideration). Build character memory system for long-term preferences.",
+        "testStrategy": "Test parallel conversation management, character switching with history, export functionality, and premium feature access control",
+        "priority": "low",
+        "dependencies": [
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-08-09T08:15:00.000Z",
+      "updated": "2025-08-17T10:49:16.296Z",
+      "description": "Optimized task list for AI Companion MVP - Focus on core features first",
+      "phases": {
+        "phase1": {
+          "name": "Core MVP",
+          "tasks": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "duration": "2 weeks",
+          "outcome": "Working chat app with basic features"
+        },
+        "phase2": {
+          "name": "Essential Features",
+          "tasks": [
+            7,
+            8,
+            9
+          ],
+          "duration": "1 week",
+          "outcome": "Production-ready with rate limiting and optimization"
+        },
+        "phase3": {
+          "name": "Monetization & Scale",
+          "tasks": [
+            10,
+            11,
+            12
+          ],
+          "duration": "2 weeks",
+          "outcome": "Full feature set with payments and advanced features"
+        }
+      },
+      "notes": {
+        "mvp_focus": "Tasks 1-6 are essential for launch",
+        "defer_complex": "Payment, multiple languages, and advanced features can wait",
+        "quick_wins": "Focus on single conversation, 3 languages, simple rate limiting",
+        "cost_savings": "Using GPT-3.5 only, simple caching, no token tracking initially"
+      }
+    }
+  }
+}
