@@ -12,10 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
 from app.services.chat_service import chat_service
+from app.services.conversation_service import conversation_service
 from app.services.llm_service import llm_service
 from app.services.character import character_service
 from app.middleware.auth import get_current_user
 from app.services.database import get_db
+from app.utils.sse import sse_chat_generator, create_sse_headers
 
 logger = logging.getLogger(__name__)
 
@@ -48,36 +50,45 @@ def format_sse_message(data: Dict[str, Any]) -> str:
 
 
 async def sse_generator(user: User, message_content: str, stream: bool):
-    """Generate SSE stream for chat responses"""
+    """Generate SSE stream for chat responses using our SSE utility"""
     try:
         # Get user's selected character
         character = await character_service.get_user_selected_character(user.id)
         if not character:
-            yield format_sse_message({
+            error_stream = async_error_generator({
                 "type": "error",
                 "error": "No character selected. Please select a character first.",
                 "code": "CHARACTER_NOT_SELECTED"
             })
+            async for chunk in sse_chat_generator(error_stream):
+                yield chunk
             return
         
-        async for chunk in chat_service.process_message(
+        # Use our new SSE chat generator
+        message_stream = chat_service.process_message(
             user=user,
             message_content=message_content,
             character_id=character.id,
             stream=stream
-        ):
-            yield format_sse_message(chunk)
+        )
         
-        # Send end-of-stream marker
-        yield format_sse_message({"type": "end"})
+        async for chunk in sse_chat_generator(message_stream):
+            yield chunk
         
     except Exception as e:
         logger.error(f"Error in SSE generator: {e}")
-        yield format_sse_message({
+        error_stream = async_error_generator({
             "type": "error",
             "error": "Stream connection error",
             "code": "SSE_ERROR"
         })
+        async for chunk in sse_chat_generator(error_stream):
+            yield chunk
+
+
+async def async_error_generator(error_dict):
+    """Helper to convert error dict to async generator"""
+    yield error_dict
 
 
 # Chat Endpoints
@@ -107,21 +118,21 @@ async def send_message(
         logger.info(f"Processing message from user {current_user.id}, character: {character.id} ({character.name})")
         
         if request.stream:
-            # Return SSE stream
+            # Return SSE stream with proper headers
+            sse_headers = create_sse_headers()
+            sse_headers.update({
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Cache-Control"
+            })
+            
             return StreamingResponse(
                 sse_generator(
                     user=current_user,
                     message_content=request.message,
                     stream=True
                 ),
-                media_type="text/plain",
-                headers={
-                    "Cache-Control": "no-cache",
-                    "Connection": "keep-alive",
-                    "X-Accel-Buffering": "no",  # Disable nginx buffering
-                    "Access-Control-Allow-Origin": "*",
-                    "Access-Control-Allow-Headers": "Cache-Control"
-                }
+                media_type="text/event-stream",
+                headers=sse_headers
             )
         else:
             # Return complete response
@@ -208,6 +219,71 @@ async def get_chat_history(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve chat history"
+        )
+
+
+@router.get("/conversation")
+async def get_conversation_info(
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get current conversation information for user and selected character
+    
+    Returns:
+        Current conversation info with metadata
+    """
+    try:
+        # Get user's selected character
+        character = await character_service.get_user_selected_character(current_user.id)
+        if not character:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail={
+                    "type": "error",
+                    "error": "No character selected. Please select a character first.",
+                    "code": "CHARACTER_NOT_SELECTED"
+                }
+            )
+        
+        # Get or create conversation
+        conversation = await conversation_service.get_or_create_conversation(
+            current_user.id, character.id
+        )
+        
+        if not conversation:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to get conversation information"
+            )
+        
+        # Get conversation info
+        conversation_info = await conversation_service.get_conversation_info(conversation.id)
+        
+        if not conversation_info:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve conversation details"
+            )
+        
+        # Add character information
+        conversation_info.update({
+            "character": {
+                "id": character.id,
+                "name": character.name,
+                "personality_type": character.personality_type,
+                "description": character.base_prompt
+            }
+        })
+        
+        return conversation_info
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting conversation info for user {current_user.id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve conversation information"
         )
 
 

@@ -11,6 +11,7 @@ from app.models.character import Character
 from app.models.user import User
 from app.services.llm_service import llm_service
 from app.services.conversation_context import conversation_context
+from app.services.conversation_service import conversation_service
 from app.services.prompt_builder import prompt_builder
 from app.services.character import character_service
 from app.services.redis import redis_service
@@ -396,7 +397,7 @@ class ChatService:
                     "id": character.id,
                     "name": character.name,
                     "personality_type": character.personality_type,
-                    "description": character.description
+                    "description": character.base_prompt
                 }
             }
             
@@ -428,6 +429,147 @@ class ChatService:
             return {
                 "status": "error",
                 "error": str(e)
+            }
+    
+    async def process_chat_message(
+        self,
+        user_id: int,
+        message: str,
+        character_id: int
+    ) -> Dict[str, Any]:
+        """
+        Simple chat processing pipeline that coordinates LLM and conversation.
+        
+        Pipeline:
+        1. Validate character access
+        2. Get/create conversation
+        3. Save user message
+        4. Get LLM response (from Task 5)
+        5. Save AI message
+        6. Return response
+        
+        Args:
+            user_id: User ID
+            message: User message content
+            character_id: Character ID
+            
+        Returns:
+            Dict[str, Any]: Processing result with response or error
+        """
+        try:
+            # Step 1: Validate character access
+            character = await character_service.get_character_by_id(character_id)
+            if not character:
+                return {
+                    "success": False,
+                    "error": "Character not found",
+                    "code": "CHARACTER_NOT_FOUND"
+                }
+            
+            # Step 2: Get/create conversation using our new conversation service
+            conversation = await conversation_service.get_or_create_conversation(
+                user_id, character_id
+            )
+            if not conversation:
+                return {
+                    "success": False,
+                    "error": "Failed to create conversation",
+                    "code": "CONVERSATION_ERROR"
+                }
+            
+            # Step 3: Save user message with cache update
+            user_message = await conversation_service.add_message_with_cache_update(
+                conversation.id, "user", message, user_id, character_id
+            )
+            if not user_message:
+                logger.warning(f"Failed to save user message for conversation {conversation.id}")
+            
+            # Step 4: Get LLM response (from Task 5)
+            # Get conversation context for LLM
+            context_messages = await conversation_context.get_message_context(
+                conversation.id, limit=5
+            )
+            
+            # Get available provider
+            provider_used = await llm_service.get_available_provider()
+            if not provider_used:
+                return {
+                    "success": False,
+                    "error": "AI service is currently unavailable",
+                    "code": "SERVICE_UNAVAILABLE"
+                }
+            
+            # Build messages for LLM
+            messages = prompt_builder.build_messages(
+                character=character,
+                context_messages=context_messages,
+                user_message=message,
+                language="en",  # Default to English for now
+                provider=provider_used
+            )
+            
+            # Generate AI response
+            response_content = ""
+            try:
+                client = llm_service.get_client(provider_used)
+                model = llm_service.get_model(provider_used)
+                
+                completion = await client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    stream=False,  # Non-streaming for simple pipeline
+                    temperature=0.7,
+                    max_tokens=500
+                )
+                
+                if completion.choices and completion.choices[0].message:
+                    response_content = completion.choices[0].message.content
+                
+            except Exception as llm_error:
+                logger.error(f"LLM generation failed: {llm_error}")
+                return {
+                    "success": False,
+                    "error": "Failed to generate AI response",
+                    "code": "LLM_ERROR",
+                    "conversation_id": conversation.id
+                }
+            
+            if not response_content:
+                return {
+                    "success": False,
+                    "error": "Empty response from AI",
+                    "code": "EMPTY_RESPONSE",
+                    "conversation_id": conversation.id
+                }
+            
+            # Step 5: Save AI message with cache update
+            ai_message = await conversation_service.add_message_with_cache_update(
+                conversation.id, "assistant", response_content, user_id, character_id
+            )
+            if not ai_message:
+                logger.warning(f"Failed to save AI message for conversation {conversation.id}")
+            
+            # Step 6: Return response
+            return {
+                "success": True,
+                "response": response_content,
+                "conversation_id": conversation.id,
+                "character": {
+                    "id": character.id,
+                    "name": character.name,
+                    "personality_type": character.personality_type
+                },
+                "provider": provider_used,
+                "user_message_id": user_message.id if user_message else None,
+                "ai_message_id": ai_message.id if ai_message else None
+            }
+            
+        except Exception as e:
+            logger.error(f"Error processing chat message for user {user_id}: {e}")
+            return {
+                "success": False,
+                "error": "An unexpected error occurred while processing your message",
+                "code": "PROCESSING_ERROR"
             }
 
 

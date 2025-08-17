@@ -68,6 +68,29 @@ class ConversationContext:
             logger.error(f"Failed to get or create conversation for user {user_id} and character {character_id}: {e}")
             return None
     
+    async def get_conversation_cache_key(
+        self,
+        conversation_id: int
+    ) -> Optional[str]:
+        """
+        Get the cache key for a conversation by looking up user and character IDs
+        
+        Args:
+            conversation_id: Conversation ID
+            
+        Returns:
+            Optional[str]: Cache key or None if conversation not found
+        """
+        try:
+            async with get_db_session() as session:
+                conversation = await session.get(Conversation, conversation_id)
+                if conversation:
+                    return f"conv:{conversation.user_id}:{conversation.character_id}"
+                return None
+        except Exception as e:
+            logger.error(f"Failed to get cache key for conversation {conversation_id}: {e}")
+            return None
+    
     async def get_message_context(
         self,
         conversation_id: int,
@@ -83,13 +106,30 @@ class ConversationContext:
         Returns:
             List[Dict[str, str]]: List of messages in OpenAI format
         """
-        # Try to get from cache first
+        # Try to get from cache first (original method)
         cache_key = f"conv:{conversation_id}:ctx:{limit}"
         cached_context = await redis_service.get_cache(cache_key)
         
         if cached_context:
             logger.debug(f"Retrieved cached context for conversation {conversation_id}")
             return cached_context
+        
+        # Also try conversation-level cache (new caching method)
+        if limit == 5:  # Our conversation cache stores 5 messages
+            conversation_cache_key = await self.get_conversation_cache_key(conversation_id)
+            if conversation_cache_key:
+                conversation_cached = await redis_service.get_cache(conversation_cache_key)
+                if conversation_cached:
+                    # Convert to OpenAI format
+                    context = []
+                    for msg in conversation_cached:
+                        role = "user" if msg.get("sender_type") == "user" else "assistant"
+                        context.append({
+                            "role": role,
+                            "content": msg.get("content", "")
+                        })
+                    logger.debug(f"Retrieved conversation-level cached context for conversation {conversation_id}")
+                    return context
         
         try:
             async with get_db_session() as session:
