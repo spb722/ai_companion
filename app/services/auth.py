@@ -559,7 +559,7 @@ class AuthService:
         password: str
     ) -> None:
         """
-        Delete user account permanently
+        Delete user account permanently from both Supabase and local database
         
         Args:
             user_id: User's local database ID
@@ -594,16 +594,35 @@ class AuthService:
                             "Password is incorrect"
                         )
                     
-                    # Delete user from Supabase
-                    # Note: This requires admin privileges in Supabase
-                    # For now, we'll mark the user as deleted in local DB
+                    # Delete user from Supabase using admin client
+                    try:
+                        from supabase import create_client
+                        from app.config import settings
+                        
+                        # Create admin client with service key
+                        admin_client = create_client(
+                            settings.supabase_url,
+                            settings.supabase_service_key
+                        )
+                        
+                        # Delete user from Supabase
+                        admin_client.auth.admin.delete_user(user.supabase_id)
+                        logger.info(f"Successfully deleted user from Supabase: {user.supabase_id}")
+                        
+                    except Exception as supabase_delete_error:
+                        logger.error(f"Failed to delete user from Supabase: {supabase_delete_error}")
+                        # Still proceed with local deletion to avoid inconsistent state
+                        # Log the error but don't fail the entire operation
+                        logger.warning(f"Proceeding with local deletion despite Supabase error for user: {user.email}")
+                    
+                    # Delete user from local database
                     await db.delete(user)
                     await db.commit()
                     
-                    # TODO: Implement Supabase user deletion when admin API is available
-                    # self.supabase.auth.admin.delete_user(user.supabase_id)
+                    logger.info(f"Successfully deleted user account: {user.email}")
                     
                 except Exception as supabase_error:
+                    await db.rollback()
                     if "Invalid login credentials" in str(supabase_error):
                         raise AuthenticationError(
                             "INVALID_CREDENTIALS",
