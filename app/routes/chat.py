@@ -120,10 +120,7 @@ async def send_message(
         if request.stream:
             # Return SSE stream with proper headers
             sse_headers = create_sse_headers()
-            sse_headers.update({
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Headers": "Cache-Control"
-            })
+            # CORS headers are now handled by middleware
             
             return StreamingResponse(
                 sse_generator(

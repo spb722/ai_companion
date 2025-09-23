@@ -70,13 +70,20 @@ app = FastAPI(
     ]
 )
 
-# CORS middleware configuration - Allow all origins for now
+# CORS middleware configuration - Allow production origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow requests from any origin
-    allow_credentials=False,  # Must be False when allow_origins=["*"]
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_origins=[
+        "https://ai-companion-inskade.web.app",
+        "https://ai-companion-inskade.firebaseapp.com",
+        "http://localhost:3000",  # For local development
+        "http://localhost:5173",  # For Vite dev server
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_headers=["authorization", "content-type", "accept"],
+    expose_headers=["*"],
+    max_age=86400,  # 24 hours
 )
 
 # Add custom middleware
