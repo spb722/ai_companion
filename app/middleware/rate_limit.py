@@ -75,7 +75,24 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             
             # Add retry-after header
             rate_headers["Retry-After"] = str(max(1, retry_after))
-            
+
+            # Add CORS headers for rate limit responses
+            origin = request.headers.get("origin")
+            if origin in [
+                "https://ai-companion-inskade.web.app",
+                "https://ai-companion-inskade.firebaseapp.com",
+                "http://localhost:3000",
+                "http://localhost:5173"
+            ]:
+                rate_headers.update({
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                    "Access-Control-Allow-Headers": "*",
+                    "Access-Control-Expose-Headers": "*",
+                    "Vary": "Origin"
+                })
+
             return JSONResponse(
                 status_code=429,
                 content=error_response,
