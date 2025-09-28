@@ -29,8 +29,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         Returns:
             Response with rate limit headers
         """
-        # Skip rate limiting for health check endpoint
-        if request.url.path == "/health":
+        # Skip rate limiting for health check endpoint and CORS preflight requests
+        if request.url.path == "/health" or request.method == "OPTIONS":
             return await call_next(request)
         
         # Get client IP

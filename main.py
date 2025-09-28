@@ -86,9 +86,9 @@ app.add_middleware(
     max_age=86400,  # 24 hours
 )
 
-# Add custom middleware
-app.add_middleware(RateLimitMiddleware, requests_per_minute=10)
+# Add custom middleware - Order matters: CORS first, then rate limiting
 app.add_middleware(LoggingMiddleware)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=10)
 
 # Include API router
 app.include_router(api_router)
