@@ -90,6 +90,15 @@ app.add_middleware(
 app.add_middleware(LoggingMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=10)
 
+# Global OPTIONS handler for CORS preflight requests
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """
+    Global OPTIONS handler for CORS preflight requests.
+    FastAPI's CORS middleware will automatically add the appropriate headers.
+    """
+    return {}
+
 # Include API router
 app.include_router(api_router)
 
