@@ -88,7 +88,7 @@ app.add_middleware(
 
 # Add custom middleware - Order matters: CORS first, then rate limiting
 app.add_middleware(LoggingMiddleware)
-app.add_middleware(RateLimitMiddleware, requests_per_minute=10)
+app.add_middleware(RateLimitMiddleware, requests_per_minute=60)
 
 # Global OPTIONS handler for CORS preflight requests
 @app.options("/{full_path:path}")
